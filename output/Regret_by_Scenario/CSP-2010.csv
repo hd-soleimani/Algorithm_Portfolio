@@ -1,0 +1,3 @@
+Cardinality,MIP_mean_regret,MIP_std_regret,TOPK_mean_regret,TOPK_std_regret,BP_mean_regret,BP_std_regret,RND_mean_regret,RND_std_regret,SB_mean_regret,SB_std_regret,SF_mean_regret,SF_std_regret,ICARUS_mean_regret,ICARUS_std_regret
+1,391990811.2814542,575967985.9865253,11807087448.503498,6829401580.082058,NA,NA,11940161105.437881,10061740429.44363,NA,NA,NA,NA,NA,NA
+2,1,0,1,0,NA,NA,1,0,NA,NA,NA,NA,1,0
