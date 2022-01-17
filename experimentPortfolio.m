@@ -25,6 +25,7 @@ nfolds  = 10;
 nrandreps = 30;
 
 for ii=1:nfiles
+    disp(filelist{ii});
     if ~isempty(tid) && ii~=tid
         % If running on the cluster, then it skips all other jobs until it
         % finds the right one.
@@ -85,6 +86,7 @@ for ii=1:nfiles
     dataIC = [];
     
     for jj=1:length(epsilon)
+        disp(['--> ' num2str(epsilon(jj))]);
         % Use the definition of 'good' performance to determine if the algorithm
         % was succesful or not.
         if MaxPerf
@@ -174,7 +176,7 @@ for ii=1:nfiles
         testRanksSB = portfolioICARUS;
         vectorSB = vectorICARUS;
         
-        regretRND = zeros(nfolds,nrandreps);
+        regretRND = zeros(nalgos,nrandreps);
         entropyRND = NaN.*regretRND;
         portfolioRND = portfolioICARUS;
         ranksRND = portfolioICARUS;
@@ -208,8 +210,8 @@ for ii=1:nfiles
                 % SEQUENTIAL FORWARD SELECTION
                 [portfolioSF{kk,ll},trainRanksSF{kk,ll}] = psf(inputRanks(:,:,CV~=ll),kk);
                 [testRanksSF{kk,ll},regretSF(kk,ll)] = getRegret(inputRanks,...
-                                                                   portfolioSF{kk,ll},...
-                                                                   CV==ll,Yaux,Ybest);
+                                                                 portfolioSF{kk,ll},...
+                                                                 CV==ll,Yaux,Ybest);
                 vectorSF(kk,portfolioSF{kk,ll}) = vectorSF(kk,portfolioSF{kk,ll}) + 1;
                 if Hbest~=0
                     entropySF(kk,ll) = getEntropy(Ybin(CV==ll,portfolioSF{kk,ll}))./Hbest;
