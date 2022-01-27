@@ -4,6 +4,11 @@
 # TASK  02  : DRAW GRAPHS - REGRET
 # TASK  02B : DRAW GRAPHS - ENTROPY
 # TASK  03  : CATEGORISE SCENARIOS
+# TASK  04  : REGRET AND ENTROPY PER SCENARIO CATEGORY
+# TASK  05  : FIX CARDINALITY, WHICH METHOD IS BEST, WHAT IS THE REGRET AND ENTROPY
+# TASK  06  : FOR REGRET < 10, WHAT IS THE SMALLEST CARDINALITY FOR EACH METHOD PER SCENARIO
+# TASK  07  : AVERAGE REGRET OVER ALL SCENARIOS
+# TASK  08  : QUADRANTS
 # --------------------------------------------------------------------------------------------------
 
 
@@ -303,3 +308,228 @@ for(i in 1:length(scenarios)){
 df <- tibble(scenario = scenarios, short = stubs)
 # write_csv(df, "Data_Output/Scenario_Stubs.csv")
 
+
+# --------------------------------------------------------------------------------------------------
+# TASK  04  : REGRET AND ENTROPY PER SCENARIO CATEGORY
+# --------------------------------------------------------------------------------------------------
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+df <- read_csv("Data_Output/Scenario_Stubs.csv")
+df2 <- df[ ,c(1,4)]
+
+regret_auc <- read_csv("Data_Output/Summaries/Regret_AUC.csv")
+regret_auc <- regret_auc[ ,-c(4,8)]
+regret_auc2 <- full_join(regret_auc, df2)
+colnames(regret_auc2)[dim(regret_auc2)[2]] <- "category"
+inds <- grep("ALGO", regret_auc2$scenario)
+regret_auc2 <- regret_auc2[-inds, ]
+regret_lng <- pivot_longer(regret_auc2, cols = 2:6)
+colnames(regret_lng)[3:4] <- c("Meta", "Regret")
+
+ggplot(regret_lng, aes(x = category , y = Regret, color = category)) + geom_point()  +   theme_bw()  +  ylab("Regret AUC") + facet_wrap(~Meta)  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  + xlab("Scenario Category")
+
+
+# entropy
+entropy_auc <- read_csv("Data_Output/Summaries/Entropy_AUC.csv")
+entropy_auc <- entropy_auc[ ,-c(4,8)]
+entropy_auc2 <- full_join(entropy_auc, df2)
+colnames(entropy_auc2)[dim(entropy_auc2)[2]] <- "category"
+inds <- grep("ALGO", entropy_auc2$scenario)
+entropy_auc2 <- entropy_auc2[-inds, ]
+entropy_lng <- pivot_longer(entropy_auc2, cols = 2:6)
+colnames(entropy_lng)[3:4] <- c("Meta", "Entropy")
+
+
+ggplot(entropy_lng, aes(x = category , y = Entropy, color = category)) + geom_point()  +   theme_bw()  +  ylab("Entropy AUC") + facet_wrap(~Meta)  + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  + xlab("Scenario Category")
+
+
+entropy_regret <- full_join(entropy_lng, regret_lng)
+entropy_regret <- entropy_regret %>% mutate(invRegret = 1/Regret)
+ggplot(entropy_regret, aes(x = Entropy, y =Regret, color = category)) + geom_point() + facet_wrap(~Meta) + geom_vline(xintercept = max(entropy_regret$Entropy, na.rm = TRUE)/2, linetype = "dotted") + geom_hline(yintercept = max(entropy_regret$Regret, na.rm = TRUE)/2, linetype = "dotted") + xlab("Entropy AUC") + ylab("Regret AUC")
+
+# --------------------------------------------------------------------------------------------------
+# TASK  05  : FIX CARDINALITY, WHICH METHOD IS BEST, WHAT IS THE REGRET AND ENTROPY
+# --------------------------------------------------------------------------------------------------
+
+folder1 <- "Data_Output/Regret_by_Scenario/"
+folder2 <- "Data_Output/Entropy_by_Scenario/"
+files_list <- list.files(folder1)
+
+## -------------------------------------
+# CHANGE OPTIONS FROM 1 TO 4
+## -------------------------------------
+option <- 4
+# opt 1 for 25% cardinality
+# opt 2 for 50% cardinality
+# opt 3 for 75% cardinality
+# opt 4 for 90% cardinality
+
+regret_fix_cardinality <-  data.frame(Scenario = character(), Cardinality = numeric(), Best_regret =  numeric(), Best_method_regret = character(), entropy = numeric())
+
+
+for(kk in 1:length(files_list)){
+  fname1 <- files_list[kk]
+  datori <- read_csv(paste(folder1, fname1, sep=""))
+  # dat <- normalize_for_AUC(datori, opt = 2)
+
+
+  colinds <- grep("mean", colnames(datori))
+  dat <- datori[ ,c(1, colinds)]
+
+  if(option == 1){
+    ind1 <- ceiling(dim(dat)[1]/4)
+  }else if(option == 2){
+    ind1 <- floor(dim(dat)[1]/2)
+  }else if(option == 3){
+    ind1 <- floor(dim(dat)[1]/4*3)
+  }else{
+    ind1 <- floor(dim(dat)[1]/10*9)
+  }
+
+
+  row1 <- dat[ind1, -1]
+  best_regret1 <- min(row1, na.rm = TRUE)
+  method1 <- names(which.min(row1))
+  pos <- regexpr("_", method1)
+  method_short <- substring(method1, 1, (pos-1))
+
+  datentropy <- read_csv(paste(folder2, fname1, sep=""))
+  entropy_method <- paste(substring(method1,1, (nchar(method1)-6)), "entropy", sep="")
+  entropy <- datentropy %>% filter(Cardinality == ind1) %>% select(entropy_method)
+
+  pos2 <- regexpr(".csv", fname1)
+  scenario <- substring(fname1, 1, (pos2 -1))
+
+  regret_fix_cardinality[kk, 1] <- scenario
+  regret_fix_cardinality[kk, 2] <- ind1
+  regret_fix_cardinality[kk, 3] <- best_regret1
+  regret_fix_cardinality[kk, 4] <- method_short
+  regret_fix_cardinality[kk, 5] <- entropy
+
+}
+
+inds <- grep("ALGO", regret_fix_cardinality$Scenario)
+regret_fix_cardinality <- regret_fix_cardinality[-inds, ]
+
+
+if(option == 1){
+  write_csv(regret_fix_cardinality, "Data_Output/Summaries/Best_Regret_At_25_Percent_Cardinality.csv")
+}else if(option == 2){
+  write_csv(regret_fix_cardinality, "Data_Output/Summaries/Best_Regret_At_50_Percent_Cardinality.csv")
+}else if(option == 3){
+  write_csv(regret_fix_cardinality, "Data_Output/Summaries/Best_Regret_At_75_Percent_Cardinality.csv")
+}else{
+  write_csv(regret_fix_cardinality, "Data_Output/Summaries/Best_Regret_At_90_Percent_Cardinality.csv")
+}
+
+
+# EXAMINE TABLE OF BEST METHODS
+option <- 1
+
+if(option == 1){
+  regret_fix_cardinality <- read_csv("Data_Output/Summaries/Best_Regret_At_25_Percent_Cardinality.csv")
+}else if(option == 2){
+  regret_fix_cardinality <- read_csv("Data_Output/Summaries/Best_Regret_At_50_Percent_Cardinality.csv")
+}else if(option == 3){
+  regret_fix_cardinality <- read_csv("Data_Output/Summaries/Best_Regret_At_75_Percent_Cardinality.csv")
+}else{
+  regret_fix_cardinality <- read_csv("Data_Output/Summaries/Best_Regret_At_90_Percent_Cardinality.csv")
+}
+
+table(regret_fix_cardinality$Best_method_regret)
+
+
+# --------------------------------------------------------------------------------------------------
+# TASK  06  : FOR REGRET < 10, WHAT IS THE SMALLEST CARDINALITY FOR EACH METHOD PER SCENARIO
+# --------------------------------------------------------------------------------------------------
+folder1 <- "Data_Output/Regret_by_Scenario/"
+folder2 <- "Data_Output/Entropy_by_Scenario/"
+files_list <- list.files(folder1)
+
+# regret_less10_cardinality <- data.frame(scenario = character(), MIP = numeric(), TOPK = numeric(), BP = numeric(), RND = numeric(), SB = numeric() )
+for(kk in 1:length(files_list)){  #
+  fname1 <- files_list[kk]
+  datori <- read_csv(paste(folder1, fname1, sep=""))
+
+  colinds <- grep("mean", colnames(datori))
+  dat <- datori[ ,c(1, colinds)]
+
+  out <- apply(dat[ ,-1], 2, function(x) min(which(x < 10)))
+
+  pos2 <- regexpr(".csv", fname1)
+  scenario <- substring(fname1, 1, (pos2 -1))
+
+  out <- as.data.frame(out)
+  out2 <- t(out)
+
+  # ---------------------------
+  # Get entropy of these instances
+  datori <- read_csv(paste(folder2, fname1, sep=""))
+  entropy_colnames <- paste(substring(colnames(out2), 1, nchar(colnames(out2))-6), "entropy", sep="")
+  entropy <- rep(0, 7)
+  for(ll in 1:7){
+    entropy[ll] <- unlist(datori[out2[ 1, ll] ,entropy_colnames[ll]])
+  }
+  entropy <- data.frame(entropy)
+  entropy <- t(entropy)
+  colnames(entropy) <- entropy_colnames
+  temp <- cbind.data.frame(out2, entropy)
+
+  if(kk ==1){
+    regret_less10_cardinality <- as.data.frame(temp) %>% mutate(scenario = scenario, full_dim = dim(dat)[1] )
+  }else{
+    temp <- as.data.frame(temp) %>% mutate(scenario = scenario, full_dim = dim(dat)[1])
+    regret_less10_cardinality <- bind_rows(regret_less10_cardinality, temp)
+  }
+}
+
+inds <- grep("ALGO", regret_less10_cardinality$scenario)
+regret_less10_cardinality <- regret_less10_cardinality[-inds, ]
+
+write_csv(regret_less10_cardinality, "Data_Output/Cardinality_for_Regret_less_than_10.csv")
+
+
+# --------------------------------------------------------------------------------------------------
+# TASK  07  : AVERAGE REGRET OVER ALL SCENARIOS
+# --------------------------------------------------------------------------------------------------
+folder1 <- "Data_Output/Regret_by_Scenario/"
+files_list <- list.files(folder1)
+
+for(kk in 1:length(files_list)){  #
+  fname1 <- files_list[kk]
+  datori <- read_csv(paste(folder1, fname1, sep=""))
+  colinds <- grep("mean", colnames(datori))
+  dat <- datori[ ,c(1, colinds)]
+
+  dat <- normalize_for_AUC(dat, opt = 3)
+  cols_names <- colnames(dat)[-1]
+  regobj <- regexpr("_", cols_names)
+  colnames(dat)[-1]  <- substring(cols_names, 1, (regobj-1))
+  dfl <- pivot_longer(dat, cols = 2:dim(dat)[2])
+  colnames(dfl)[2:3] <- c("Meta", "Regretlog10")
+
+  pos2 <- regexpr(".csv", fname1)
+  scenario <- substring(fname1, 1, (pos2 -1))
+  temp <- dfl %>% mutate(scenario = scenario)
+
+  if(kk == 1){
+    df_all <- temp
+  }else{
+    df_all <- bind_rows(df_all, temp)
+  }
+}
+
+
+ggplot(df_all, aes(x = Cardinality, y= Regretlog10)) + geom_point(aes(color = Meta)) + facet_wrap(~Meta) + geom_smooth()
+
+write_csv(df_all, "Data_Output/Summaries/Log10Regret_over_Percentage_Cardinality_for_Scenarios.csv")
+
+# --------------------------------------------------------------------------------------------------
+# TASK  08  : QUADRANTS
+# --------------------------------------------------------------------------------------------------
+
+df <- data.frame(x = c(0.15, 0.6, 0.15, 0.6), y = c(1, 1, 3.5, 3.5), descr = c("Similar benchmarks, low regret", "Best quadrant", "Worst quadrant", "Diverse benchmarks, high regret"))
+ggplot(df, aes(x = x, y = y, label = descr )) + geom_point(size = 0.00001) + xlim(0, 0.8) + ylim(0, 4.5) + geom_hline(yintercept = 2.2, linetype = "dotted") + geom_vline(xintercept = 0.4, linetype = "dotted") + geom_text() + xlab("Entropy") + ylab("Regret")
